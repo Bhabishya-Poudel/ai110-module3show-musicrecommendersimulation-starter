@@ -21,16 +21,31 @@ Prompts:
 
 ## 3. How the Model Works  
 
-Explain your scoring approach in simple language.  
+Think of it as a judge holding a checklist. You tell the judge what you like: a genre, a mood, how energetic the music should be, and a few other leanings such as how upbeat or how acoustic. The judge then listens to every song in the catalog, one at a time, and gives each one a grade from 0 to 1 for how well it fits you. The songs with the best grades become your recommendations.
 
-Prompts:  
+**What the judge looks at.** For each song it checks five things:
 
-- What features of each song are used (genre, energy, mood, etc.)  
-- What user preferences are considered  
-- How does the model turn those into a score  
-- What changes did you make from the starter logic  
+- **Energy:** how close the song's energy is to what you asked for. This counts the most.
+- **Valence (how upbeat or positive the song sounds):** how close it is to your target. This counts second most.
+- **Mood:** does the song's mood match yours exactly, like "chill" or "happy"?
+- **Acousticness:** does the song sound as acoustic (or as electronic) as you like?
+- **Genre:** does the song's genre match yours exactly? This counts the least.
 
-Avoid code here. Pretend you are explaining the idea to a friend who does not program.
+**Close counts, but not far.** For energy, valence and acousticness, a song is rewarded for being near your target, not for being "more" or "less". A calm listener is never pushed toward loud music just because it is high energy. A song that is a little off still earns most of the credit, but one that is far off loses points quickly.
+
+**Mood and genre are yes or no.** The label either matches or it doesn't. "Indie pop" does not count as "pop", and a word the catalog doesn't contain, like "sleepy", earns nothing.
+
+**Turning it into a grade.** Each of the five checks is worth a share of the grade, and the shares add up to the final score. If you leave something out, say you don't give a valence, the judge skips it and judges only on what you did give, so you aren't penalized for being less specific.
+
+**Choosing what to show.**
+
+1. Rank every song from best grade to worst.
+2. Drop songs that don't reach a basic level of fit.
+3. Show the top few, each with the reasons behind its grade, such as "energy: closest match" or "mood matches (happy)". Grades are shown in words (closest, closer, close, near, distant match) instead of raw numbers, so they are easier to read.
+4. If nothing fits well, show the closest songs anyway, marked as "no strong match".
+5. About one time in ten, one slot is swapped for a random song, so you get a chance to find something you wouldn't have asked for.
+
+**What I changed from the starter idea.** The common starting recipe gives a big bonus for matching genre, a smaller one for mood, and a score for energy. I turned that around. Energy and valence count the most because they describe how a song feels, and genre counts the least because it is a broad label that hides a lot of variety. I also added the "closer is better" scoring, the reasons with each pick, the "no strong match" fallback, and the surprise pick.
 
 ---
 
