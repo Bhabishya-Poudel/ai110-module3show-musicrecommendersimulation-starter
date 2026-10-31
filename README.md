@@ -2,22 +2,11 @@
 
 ## Project Summary
 
-In this project you will build and explain a small music recommender system.
-
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+This is a small music recommender. You give it a genre, a mood and a few numbers, like energy and acousticness. It scores all 18 songs in the catalog and shows the best matches, each with a reason. See the [model card](model_card.md) for details.
 
 ---
 
 ## How The System Works
-
-Explain your design in plain language.
 
 - **Song features:** id, title, artist, genre, mood, energy, tempo_bpm, valence, danceability and acousticness. Scoring uses energy, valence, mood, acousticness and genre.
 - **UserProfile:** favorite genre, favorite mood, target energy, and whether they like acoustic music.
@@ -64,6 +53,9 @@ Every song is scored independently, and ranking is the only step that compares s
 | Mood | exact match = full weight, otherwise 0 | 0.20 |
 | Acousticness | `(1 - gap)²`, target 0.8 if the user likes acoustic, else 0.2 | 0.10 |
 | Genre | exact match = full weight, otherwise 0 | 0.10 |
+| Mood tags | share of the wanted tags the song has | 0.10 |
+| Instrumentalness, popularity, decade | `(1 - gap)²`, only if asked for | 0.05 each |
+| Language | exact match | 0.05 |
 | Normalize | `total / sum of weights actually used`, giving a 0 to 1 score | |
 | Rank | sort high to low, keep score ≥ 0.5, return top k, about 10% chance one slot is a surprise pick | |
 
@@ -106,15 +98,23 @@ pip install -r requirements.txt
 python -m src.main
 ```
 
+### Scoring modes and options
+
+```bash
+python3 src/main.py --mode genre-first      # also: mood-first, energy-focused, balanced (default)
+python3 src/main.py --no-diversity          # turn off the diversity penalty
+python3 src/main.py --adversarial           # run the edge-case profiles
+```
+
+Each mode is a different weight table in `MODES` in `src/recommender.py`. Songs also have five extra features: popularity, release decade, mood tags, instrumentalness and language. A profile can ask for any of them. Features a profile leaves out are skipped. By default, a song loses 0.10 for each earlier pick by the same artist and 0.05 for each earlier pick in the same genre.
+
 ### Running Tests
 
-Run the starter tests with:
+Run the tests with:
 
 ```bash
 pytest
 ```
-
-You can add more tests in `tests/test_recommender.py`.
 
 ---
 
@@ -122,45 +122,38 @@ You can add more tests in `tests/test_recommender.py`.
 
 Profile: genre=pop, mood=happy, energy=0.80, valence=0.82, acousticness=0.20
 
-Generated with `python src/main.py` from the project root. Scores appear as match labels (see Scoring above).
+Generated with `python src/main.py` from the project root. Scores appear as match labels (see Scoring above). The last line of reasons for Gym Hero shows the diversity penalty.
 
-```
-Top recommendations
-====================================================
-
-1. Sunrise City by Neon Echo
-   Overall: closest match
-     - energy: closest match
-     - valence: closest match
-     - acousticness: closest match
-     - mood matches (happy)
-     - genre matches (pop)
-
-2. Rooftop Lights by Indigo Parade
-   Overall: close match
-     - energy: closer match
-     - valence: closest match
-     - acousticness: close match
-     - mood matches (happy)
-
-3. Gym Hero by Max Pulse
-   Overall: near match
-     - energy: close match
-     - valence: closer match
-     - acousticness: close match
-     - genre matches (pop)
-
-4. Concrete Crown by Verse Ledger
-   Overall: near match
-     - energy: closest match
-     - valence: near match
-     - acousticness: close match
-
-5. Pulse Horizon by Kaleido
-   Overall: near match
-     - energy: close match
-     - valence: closest match
-     - acousticness: near match
+```text
+High-Energy Pop
++---+----------------+---------------+---------------+----------------------------------------------+
+| # | Title          | Artist        | Match         | Reasons                                      |
++---+----------------+---------------+---------------+----------------------------------------------+
+| 1 | Sunrise City   | Neon Echo     | closest match | energy: closest match                        |
+|   |                |               |               | valence: closest match                       |
+|   |                |               |               | acousticness: closest match                  |
+|   |                |               |               | mood matches (happy)                         |
+|   |                |               |               | genre matches (pop)                          |
++---+----------------+---------------+---------------+----------------------------------------------+
+| 2 | Rooftop Lights | Indigo Parade | close match   | energy: closer match                         |
+|   |                |               |               | valence: closest match                       |
+|   |                |               |               | acousticness: close match                    |
+|   |                |               |               | mood matches (happy)                         |
++---+----------------+---------------+---------------+----------------------------------------------+
+| 3 | Gym Hero       | Max Pulse     | near match    | energy: close match                          |
+|   |                |               |               | valence: closer match                        |
+|   |                |               |               | acousticness: close match                    |
+|   |                |               |               | genre matches (pop)                          |
+|   |                |               |               | diversity penalty -0.05                      |
++---+----------------+---------------+---------------+----------------------------------------------+
+| 4 | Concrete Crown | Verse Ledger  | near match    | energy: closest match                        |
+|   |                |               |               | valence: near match                          |
+|   |                |               |               | acousticness: close match                    |
++---+----------------+---------------+---------------+----------------------------------------------+
+| 5 | Pulse Horizon  | Kaleido       | near match    | energy: close match                          |
+|   |                |               |               | valence: closest match                       |
+|   |                |               |               | acousticness: near match                     |
++---+----------------+---------------+---------------+----------------------------------------------+
 ```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
@@ -168,6 +161,18 @@ Top recommendations
 ---
 
 ## Experiments You Tried
+
+### Weight shift: double energy, halve genre
+
+Changed `WEIGHTS` from energy 0.35 / genre 0.10 to energy 0.70 / genre 0.05 (valence, mood, acousticness unchanged). The weights no longer sum to 1 (they sum to 1.30), but `score_song` divides by the weights in use, so every score stayed within 0 to 1. I checked this for all 18 songs under all three profiles.
+
+What changed (top 5):
+
+- **High-Energy Pop:** Sunrise City and Rooftop Lights stayed #1 and #2. Concrete Crown (hip hop) overtook Gym Hero (pop) for #3, because Gym Hero's genre match is worth half as much. Night Drive Loop replaced Pulse Horizon at #5.
+- **Chill Lofi:** same top 4 order. Coffee Shop Stories (jazz) replaced Morning Fog at #5.
+- **Deep Intense Rock:** Storm Runner stayed #1. Iron Tide (metal/angry) moved above the weaker matches, and Pulse Horizon (edm) entered the top 5.
+
+Verdict: **different, not clearly more accurate.** The top picks did not move, which suggests they are driven by several features agreeing. Slots 3 to 5 reshuffled toward songs with similar energy but the wrong genre, and scores in the tail rose (for example 0.57 to 0.65), so the system separates good matches from weak ones less sharply. I reverted to the original weights.
 
 Use this section to document the experiments you ran. For example:
 
@@ -179,28 +184,19 @@ Use this section to document the experiments you ran. For example:
 
 ## Limitations and Risks
 
-Summarize some limitations of your recommender.
+- The catalog is tiny, with 18 songs.
+- Most genres and moods have only one song.
+- There is no "sad" mood, and no very quiet songs.
+- It does not understand lyrics or language.
+- Mood and genre must match exactly.
+- Mainstream, mid-energy tastes get the best matches.
 
-Examples:
-
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
-
-You will go deeper on this in your model card.
+More detail is in the model card.
 
 ---
 
 ## Reflection
 
-Read and complete `model_card.md`:
+Read the full [**Model Card**](model_card.md).
 
-[**Model Card**](model_card.md)
-
-Write 1 to 2 paragraphs here about what you learned:
-
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
-
-
-
+Simple scores can feel like real recommendations. Every song gets a grade, and the grades make a list. The weights decide whose taste the list fits. A tiny catalog also decides that. Users with unusual tastes get weaker matches, and nothing in the score tells them why.
